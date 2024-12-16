@@ -1,1 +1,4 @@
 %HOME%
+data
+.pylintrc
+test.ipynb
