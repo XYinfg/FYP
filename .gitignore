@@ -2,3 +2,12 @@
 data
 .pylintrc
 test.ipynb
+tests.ipynb
+/pytest_cache
+/results
+/models
+/src3
+/src4
+main3.py
+main4.py
+scheduler_comparison.png
