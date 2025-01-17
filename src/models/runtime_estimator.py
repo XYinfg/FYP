@@ -45,15 +45,25 @@ class RuntimeEstimator:
         features = []
         feature_names = []
         
-        # Basic task features
+        # Check if DataFrame is empty
+        if df.empty:
+            raise ValueError("Empty DataFrame provided")
+        
+        logger.info("Available columns in data: %s", str(list(df.columns)))
+        
+        # Basic task features - only use features that exist in the data
         for col in self.feature_columns:
             if col in df.columns:
                 features.append(df[col].values.reshape(-1, 1))
                 feature_names.append(col)
         
+        if not features:
+            raise ValueError(f"No valid features found. Required features: {self.feature_columns}")
+        
         # Combine all features
         X = np.hstack(features)
         
+        logger.info("Prepared features: %s", str(feature_names))
         return X, feature_names
 
     def train(self, task_data: pd.DataFrame) -> None:
