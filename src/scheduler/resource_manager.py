@@ -228,12 +228,17 @@ class ResourceManager:
             task_id: Task identifier
             success: Whether the task completed successfully
         """
+        logger.info(f"Attempting to complete task {task_id} (success={success})")
+        
         if task_id not in self.tasks:
             logger.warning(f"Attempted to complete non-existent task {task_id}")
             return
-        
+            
         task = self.tasks[task_id]
+        logger.info(f"Task state before completion: {task.state}")
+        
         if task.machine_id:
+            logger.info(f"Releasing resources from machine {task.machine_id}")
             machine = self.machines[task.machine_id]
             
             # Release resources
@@ -248,17 +253,30 @@ class ResourceManager:
                 )
             else:
                 machine.runtime_bin = 0
+                
+            logger.info(f"Resources released. Machine {task.machine_id} now has:")
+            logger.info(f"CPU used: {machine.cpu_used}/{machine.cpu_capacity}")
+            logger.info(f"Memory used: {machine.memory_used}/{machine.memory_capacity}")
         
         # Update task state
         task.state = TaskState.COMPLETED if success else TaskState.FAILED
         if task.start_time:
             task.actual_runtime = (datetime.now() - task.start_time).total_seconds()
+            
+        logger.info(f"Task state after completion: {task.state}")
         
         # Update tracking sets
-        self.running_tasks.remove(task_id)
+        if task_id in self.running_tasks:
+            logger.info(f"Removing task {task_id} from running_tasks")
+            self.running_tasks.remove(task_id)
+        else:
+            logger.warning(f"Task {task_id} not found in running_tasks")
+            
         if success:
+            logger.info(f"Adding task {task_id} to completed_tasks")
             self.completed_tasks.add(task_id)
         else:
+            logger.info(f"Adding task {task_id} to failed_tasks")
             self.failed_tasks.add(task_id)
         
         # Record completion

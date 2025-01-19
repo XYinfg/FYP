@@ -49,13 +49,17 @@ class BaselineScheduler:
         """Submit a task to be scheduled"""
         task_id = str(uuid.uuid4())
         
+        # Add task to resource manager with a simple runtime estimate
+        # Use a simple heuristic: runtime proportional to resource requests
+        runtime_estimate = (cpu_request + memory_request) * 60  # Simple estimation
+        
         # Add task to resource manager
         self.resource_manager.add_task(
             job_id=job_id,
             task_id=task_id,
             cpu_request=cpu_request,
             memory_request=memory_request,
-            runtime_estimate=0,  # Baseline schedulers don't use runtime estimates
+            runtime_estimate=runtime_estimate,
             runtime_bin=0,
             priority=priority
         )
@@ -77,6 +81,24 @@ class BaselineScheduler:
         )
         
         return task_id
+        
+    def simulate_task_execution(self):
+        """Simulate task execution and completion"""
+        now = datetime.now()
+        for task_id in list(self.resource_manager.running_tasks):  # Create copy to avoid modification during iteration
+            task = self.resource_manager.tasks.get(task_id)
+            if task and task.start_time:
+                execution_time = (now - task.start_time).total_seconds()
+                if execution_time >= task.runtime_estimate:
+                    logger.info(f"Task {task_id} completed after {execution_time:.2f} seconds")
+                    self.resource_manager.complete_task(task_id, success=True)
+                    # Record completion in metrics
+                    self.metrics.record_task_event(
+                        task_id=task_id,
+                        event_type='complete',
+                        timestamp=now,
+                        task_info={'execution_time': execution_time}
+                    )
 
 class FCFSScheduler(BaselineScheduler):
     """

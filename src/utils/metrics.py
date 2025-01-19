@@ -174,6 +174,76 @@ class SchedulerMetrics:
             'avg_sla_excess': avg_excess
         }
     
+    def compute_performance_metrics(self) -> Dict[str, float]:
+        """
+        Compute comprehensive performance metrics.
+        
+        Returns:
+            Dictionary containing performance metrics
+        """
+        # Get earliest submit time and latest completion time
+        submit_times = [task['submit_time'] for task in self.task_history.values() 
+                       if task['submit_time'] is not None]
+        completion_times = [task['completion_time'] for task in self.task_history.values() 
+                          if task['completion_time'] is not None]
+        
+        if not submit_times or not completion_times:
+            return {
+                'makespan': 0,
+                'avg_turnaround_time': 0,
+                'throughput': 0,
+                'resource_utilization': 0,
+                'scheduling_efficiency': 0,
+                'completion_rate': 0
+            }
+        
+        # Calculate makespan (total execution time)
+        makespan = (max(completion_times) - min(submit_times)).total_seconds()
+        
+        # Calculate throughput (tasks completed per second)
+        completed_tasks = len([t for t in self.task_history.values() if t['status'] == 'complete'])
+        throughput = completed_tasks / makespan if makespan > 0 else 0
+        
+        # Calculate average turnaround time
+        turnaround_times = []
+        for task in self.task_history.values():
+            if task['submit_time'] and task['completion_time']:
+                turnaround_time = (task['completion_time'] - task['submit_time']).total_seconds()
+                turnaround_times.append(turnaround_time)
+        avg_turnaround_time = np.mean(turnaround_times) if turnaround_times else 0
+        
+        # Calculate resource utilization (time running tasks / total time available)
+        total_task_time = sum(t['execution_time'] for t in self.task_history.values() 
+                            if t['execution_time'] is not None)
+        total_available_time = makespan * len(self.get_unique_machines())
+        resource_utilization = total_task_time / total_available_time if total_available_time > 0 else 0
+        
+        # Calculate scheduling efficiency (1 - average waiting time / makespan)
+        avg_waiting_time = np.mean([task['waiting_time'] for task in self.task_history.values() 
+                                  if task['waiting_time'] is not None]) or 0
+        scheduling_efficiency = 1 - (avg_waiting_time / makespan) if makespan > 0 else 0
+        
+        # Calculate completion rate
+        total_tasks = len(self.task_history)
+        completion_rate = completed_tasks / total_tasks if total_tasks > 0 else 0
+        
+        return {
+            'makespan': makespan,
+            'avg_turnaround_time': avg_turnaround_time,
+            'throughput': throughput,
+            'resource_utilization': resource_utilization,
+            'scheduling_efficiency': scheduling_efficiency,
+            'completion_rate': completion_rate
+        }
+        
+    def get_unique_machines(self) -> set:
+        """Get set of unique machines used"""
+        machines = set()
+        for task in self.task_history.values():
+            if 'machine_id' in task.get('info', {}):
+                machines.add(task['info']['machine_id'])
+        return machines
+        
     def get_full_report(self) -> Dict[str, Dict[str, float]]:
         """
         Generate a comprehensive performance report.
@@ -181,10 +251,27 @@ class SchedulerMetrics:
         Returns:
             Dictionary containing all metrics
         """
+        basic_stats = self.compute_task_statistics()
+        resource_stats = self.compute_resource_statistics()
+        sla_metrics = self.compute_sla_metrics()
+        performance_metrics = self.compute_performance_metrics()
+        
+        # Calculate additional metrics
+        job_count = len(set(task['info']['job_id'] for task in self.task_history.values() 
+                          if 'job_id' in task.get('info', {})))
+        
+        system_metrics = {
+            'total_jobs': job_count,
+            'total_tasks': len(self.task_history),
+            'unique_machines': len(self.get_unique_machines())
+        }
+        
         return {
-            'task_stats': self.compute_task_statistics(),
-            'resource_stats': self.compute_resource_statistics(),
-            'sla_metrics': self.compute_sla_metrics()
+            'task_stats': basic_stats,
+            'resource_stats': resource_stats,
+            'sla_metrics': sla_metrics,
+            'performance_metrics': performance_metrics,
+            'system_metrics': system_metrics
         }
     
     def save_metrics(self, output_dir: str) -> None:
